@@ -1,0 +1,29 @@
+name: namespace probe (temporary)
+
+on:
+  push:
+    branches: [ns-probe]
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Host namespace facts
+        run: |
+          uname -a
+          cat /proc/sys/user/max_user_namespaces
+          cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || true
+          unshare --user --map-root-user --mount -- true && echo "unshare: ok" || echo "unshare: denied"
+          python -c "from inferrsi.infra.confinement import namespaces_available as f; print('namespaces_available', f())"
+      - name: Live namespace test
+        run: python -m pytest -v -rs tests/test_confinement.py tests/test_parallel_round.py tests/test_round_budget.py
